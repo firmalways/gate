@@ -1,0 +1,12 @@
+# Demo policy: route the model "echo" to the fake AI started with
+#   firmalways-gate echo-upstream --port 8788
+default_action = "mask"
+
+[audit]
+path = "-"
+
+[[upstreams]]
+name = "echo"
+base_url = "http://127.0.0.1:8788/v1"
+models = ["echo"]
+timeout = 10

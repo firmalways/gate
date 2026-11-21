@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "firmalways-gate"
+version = "0.1.0"
+description = "Open-source AI privacy gateway for Thai personal data (PDPA): detect, mask, forward, restore."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+dependencies = []
+keywords = ["pdpa", "privacy", "pii", "thai", "llm", "gateway", "openai"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Natural Language :: Thai",
+    "Topic :: Security",
+    "Development Status :: 3 - Alpha",
+]
+
+[project.scripts]
+firmalways-gate = "firmalways_gate.cli:main"
+
+[project.urls]
+Source = "https://github.com/piyawatSritavong/FirmAlways-Gate"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/firmalways_gate"]

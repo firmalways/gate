@@ -1,0 +1,49 @@
+# FirmAlways Gate policy. Copy to policy.toml and edit.
+# Actions: "allow" (send as is), "mask" (replace with «TYPE_N», restore in the answer), "block" (refuse the request).
+
+default_action = "mask"   # used for entity types not listed below
+
+[detection]
+min_score = 0.5           # ignore detections below this confidence (0–1)
+lenient_thai_id = true    # also treat 13-digit numbers that fail the checksum as IDs (mistyped IDs are still personal data)
+
+[content]
+allow_non_text = false    # images and files cannot be inspected; false = refuse requests that contain them
+
+[entities]
+THAI_NATIONAL_ID = "mask"
+PHONE = "mask"
+EMAIL = "mask"
+BANK_ACCOUNT = "mask"
+CREDIT_CARD = "mask"
+PERSON = "mask"
+THAI_ADDRESS = "mask"
+SECRET = "block"
+
+[audit]
+path = "firmalways-audit.jsonl"   # content-free JSON Lines; "" disables, "-" writes to stdout
+
+[server]
+max_body_bytes = 2000000
+
+# Only the models listed here can be used. Gate holds the provider key; clients never see it.
+[[upstreams]]
+name = "openai"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+models = ["gpt-4.1-mini", "gpt-4.1"]
+timeout = 120
+
+# Azure OpenAI (v1 API) in your own Azure subscription:
+# [[upstreams]]
+# name = "azure"
+# base_url = "https://<your-resource>.openai.azure.com/openai/v1"
+# api_key_env = "AZURE_OPENAI_API_KEY"
+# auth_header = "api-key"
+# models = ["<your-deployment-name>"]
+
+# A local model (Ollama, vLLM, LM Studio) — nothing leaves the machine:
+# [[upstreams]]
+# name = "local"
+# base_url = "http://127.0.0.1:11434/v1"
+# models = ["*"]
