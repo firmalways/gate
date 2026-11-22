@@ -85,6 +85,7 @@ class Policy:
     lenient_thai_id: bool = True
     sensitive_requires_identifier: bool = True
     allow_non_text: bool = False
+    files: str = "extract"
     response_scan: bool = True
     response_default_action: str = "allow"
     response_entity_actions: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_RESPONSE_ACTIONS))
@@ -156,6 +157,7 @@ class Policy:
                 detection.get("sensitive_requires_identifier", True), "detection.sensitive_requires_identifier"
             ),
             allow_non_text=_bool(_table(data, "content").get("allow_non_text", False), "content.allow_non_text"),
+            files=_files(_table(data, "content").get("files", "extract")),
             response_scan=_bool(response.get("scan", True), "response.scan"),
             response_default_action=response_default,
             response_entity_actions=response_actions,
@@ -186,6 +188,12 @@ def _table(data: dict[str, Any], key: str) -> dict[str, Any]:
 def _action(value: Any, where: str) -> str:
     if value not in ACTIONS:
         raise PolicyError(f"{where} must be one of {', '.join(ACTIONS)}; got {value!r}")
+    return value
+
+
+def _files(value: Any) -> str:
+    if value not in ("extract", "block"):
+        raise PolicyError('content.files must be "extract" or "block"')
     return value
 
 

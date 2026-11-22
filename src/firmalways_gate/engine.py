@@ -9,6 +9,7 @@ from typing import Any
 
 from .analyzer import analyze
 from .entities import Entity
+from .files import FileNotSupported, decode_data_url, extract_text
 from .policy import Policy
 from .pseudonymize import Pseudonymizer
 
@@ -24,6 +25,8 @@ class Protection:
     counts: Counter[str] = field(default_factory=Counter)
     blocked_types: set[str] = field(default_factory=set)
     masked: int = 0
+    allowed: Counter[str] = field(default_factory=Counter)
+    file_parts: int = 0
 
     @property
     def blocked(self) -> bool:
@@ -72,6 +75,7 @@ class Gate:
             elif action == "mask":
                 to_mask.append(entity)
             else:
+                protection.allowed[entity.type] += 1
                 pseudonymizer.note(entity)
         protection.masked += len(to_mask)
         return pseudonymizer.mask(text, to_mask), protection
@@ -99,6 +103,13 @@ class Gate:
                         raise TypeError("content parts must be objects")
                     if part.get("type") == "text" and isinstance(part.get("text"), str):
                         part["text"], _ = self.protect_text(part["text"], pseudonymizer, protection)
+                    elif part.get("type") == "file" and self.policy.files == "extract":
+                        text = self._file_text(part)
+                        masked, _ = self.protect_text(text, pseudonymizer, protection)
+                        name = (part.get("file") or {}).get("filename") or "file"
+                        part.clear()
+                        part.update({"type": "text", "text": f"[ไฟล์แนบ: {name}]\n{masked}"})
+                        protection.file_parts += 1
                     elif not self.policy.allow_non_text:
                         raise ContentNotAllowed(f"content part of type {part.get('type')!r} cannot be inspected")
             elif content is not None:
@@ -109,6 +120,17 @@ class Gate:
                     function["arguments"], _ = self.protect_text(function["arguments"], pseudonymizer, protection)
             result.append(message)
         return result, protection
+
+    @staticmethod
+    def _file_text(part: dict[str, Any]) -> str:
+        file = part.get("file")
+        if not isinstance(file, dict) or not isinstance(file.get("file_data"), str):
+            raise ContentNotAllowed("file parts must carry inline file_data; uploaded file_id cannot be inspected")
+        try:
+            mime, data = decode_data_url(file["file_data"])
+            return extract_text(str(file.get("filename") or ""), mime, data)
+        except FileNotSupported as exc:
+            raise ContentNotAllowed(str(exc)) from exc
 
     def preview(self, text: str) -> dict[str, Any]:
         """Show what an AI provider would receive for ``text``, without calling it."""

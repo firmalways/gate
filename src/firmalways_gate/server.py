@@ -248,6 +248,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
 
         counts = dict(protection.counts)
+        extra_audit = {"allowed": dict(protection.allowed) or None, "file_parts": protection.file_parts or None}
         if protection.blocked:
             record("blocked", 422, reason="blocked_entity", entities=counts)
             self._error(
@@ -279,7 +280,7 @@ class _Handler(BaseHTTPRequestHandler):
                 if stream:
                     self._relay_stream(response, pseudonymizer, headers, redacted)
                     record("forwarded", 200, entities=counts, masked=protection.masked,
-                           response_redacted=dict(redacted) or None)
+                           response_redacted=dict(redacted) or None, **extra_audit)
                     return
                 raw = response.read()
         except (BrokenPipeError, ConnectionResetError, socket.timeout):
@@ -292,7 +293,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_bytes(200, raw, response.headers.get("Content-Type", "text/plain"), headers)
             return
         restore_completion(data, pseudonymizer, self.server.gate, redacted)
-        record("forwarded", 200, entities=counts, masked=protection.masked, response_redacted=dict(redacted) or None)
+        record("forwarded", 200, entities=counts, masked=protection.masked, response_redacted=dict(redacted) or None,
+               **extra_audit)
         headers["X-FirmAlways-Response-Redacted"] = _format_counts(dict(redacted))
         self._send_json(200, data, headers)
 

@@ -12,11 +12,14 @@ add independent, human-labelled samples before quoting numbers externally.
 from __future__ import annotations
 
 import random
+import re
 import string
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
+from importlib import resources
 
 from .analyzer import ENTITY_TYPES, analyze
 from .entities import Entity
@@ -149,7 +152,7 @@ def _templates(rng: random.Random) -> list[Sample]:
         _compose(["ที่อยู่จัดส่ง ", ("THAI_ADDRESS", address(rng)), " โทร ", ("PHONE", phone(rng))]),
         _compose(["บัตรเครดิต ", ("CREDIT_CARD", card(rng)), " ถูกปฏิเสธ ช่วยเขียนข้อความแจ้งลูกค้า"]),
         _compose(["นี่คือ API key ของระบบ ", ("SECRET", secret(rng)), " ช่วยตรวจโค้ดหน่อย"]),
-        _compose(["ผู้ป่วยเลขบัตร", ("THAI_NATIONAL_ID", thai_id(rng).replace(" ", "").replace("-", "")),
+        _compose([("SENSITIVE_HEALTH", "ผู้ป่วย"), "เลขบัตร", ("THAI_NATIONAL_ID", thai_id(rng).replace(" ", "").replace("-", "")),
                   "โทร", ("PHONE", "0" + rng.choice("689") + _digits(rng, 8))]),
         _compose(["Please email Mr. ", ("PERSON", f"{en_first} {en_last}"), " at ", ("EMAIL", email(rng))]),
         _compose(["พนักงาน นาย", ("PERSON", full), " รหัสผ่าน: ", ("SECRET", "Pa55" + _digits(rng, 4))]),
@@ -205,13 +208,80 @@ def evaluate(samples: list[Sample], detect: Callable[[str], list[Entity]] = anal
     }
 
 
-def run(seed: int = 7, repeats: int = 30) -> dict[str, Any]:
-    return evaluate(generate(seed, repeats))
+_MARK = re.compile(r"\[\[([A-Z_]+):(.*?)\]\]")
+
+
+def parse_marked(line: str) -> Sample:
+    """Turn ``"โทร [[PHONE:0812345678]]"`` into text plus gold spans."""
+    parts: list[Part] = []
+    pos = 0
+    for m in _MARK.finditer(line):
+        parts.append(line[pos : m.start()])
+        parts.append((m.group(1), m.group(2)))
+        pos = m.end()
+    parts.append(line[pos:])
+    return _compose(parts)
+
+
+def load_curated() -> list[Sample]:
+    text = resources.files("firmalways_gate").joinpath("data/curated_th.txt").read_text(encoding="utf-8")
+    return [parse_marked(line) for line in text.splitlines() if line.strip() and not line.startswith("#")]
+
+
+def evaluate_any_type(samples: list[Sample], detect: Callable[[str], list[tuple[int, int]]]) -> dict[str, Any]:
+    """Type-agnostic comparison: a gold value counts as found if any detection overlaps it.
+
+    ``detect`` returns ``(start, end)`` spans, so tools with different type
+    names (for example Microsoft Presidio) can be compared fairly.
+    """
+    found_by_type: Counter[str] = Counter()
+    total_by_type: Counter[str] = Counter()
+    false_positives = 0
+    predictions = 0
+    gold_chars = covered_chars = 0
+    for sample in samples:
+        predicted = detect(sample.text)
+        predictions += len(predicted)
+        for start, end in predicted:
+            if not any(start < g_end and g_start < end for _, g_start, g_end in sample.spans):
+                false_positives += 1
+        covered = set()
+        for start, end in predicted:
+            covered.update(range(start, end))
+        for kind, start, end in sample.spans:
+            total_by_type[kind] += 1
+            if any(start < p_end and p_start < end for p_start, p_end in predicted):
+                found_by_type[kind] += 1
+            gold_chars += end - start
+            covered_chars += sum(1 for i in range(start, end) if i in covered)
+    found = sum(found_by_type.values())
+    total = sum(total_by_type.values())
+    return {
+        "samples": len(samples),
+        "values": total,
+        "recall": round(found / total, 4) if total else 1.0,
+        "precision": round((predictions - false_positives) / predictions, 4) if predictions else 1.0,
+        "protection_recall": round(covered_chars / gold_chars, 4) if gold_chars else 1.0,
+        "false_positives": false_positives,
+        "recall_by_type": {k: round(found_by_type[k] / total_by_type[k], 4) for k in sorted(total_by_type)},
+    }
+
+
+def run(seed: int = 7, repeats: int = 30, dataset: str = "synthetic") -> dict[str, Any]:
+    if dataset == "curated":
+        samples = load_curated()
+        report = evaluate(samples)
+        report["any_type"] = evaluate_any_type(samples, lambda text: [(e.start, e.end) for e in analyze(text)])
+        report["dataset"] = "curated"
+        return report
+    report = evaluate(generate(seed, repeats))
+    report["dataset"] = "synthetic"
+    return report
 
 
 def format_report(report: dict[str, Any]) -> str:
     lines = [
-        f"FirmAlways Gate synthetic Thai benchmark — {report['samples']} samples",
+        f"FirmAlways Gate {report.get('dataset', 'synthetic')} Thai benchmark — {report['samples']} samples",
         f"{'type':<17} {'precision':>9} {'recall':>7} {'f1':>6} {'support':>8}",
     ]
     for kind, m in report["per_type"].items():
@@ -220,5 +290,10 @@ def format_report(report: dict[str, Any]) -> str:
     lines.append(f"{'OVERALL':<17} {o['precision']:>9.3f} {o['recall']:>7.3f} {o['f1']:>6.3f} {o['support']:>8}")
     lines.append(f"protection recall (characters covered): {report['protection_recall']:.3f}")
     lines.append(f"false positives on negative samples: {report['negative_false_positives']}")
-    lines.append("Synthetic and written by the detector authors: optimistic, use as a regression guard.")
+    if report.get("dataset") == "curated":
+        a = report["any_type"]
+        lines.append(f"any-type recall {a['recall']:.3f}, precision {a['precision']:.3f}, false positives {a['false_positives']}")
+        lines.append("Curated v0: hand-written by maintainers, not externally annotated.")
+    else:
+        lines.append("Synthetic and written by the detector authors: optimistic, use as a regression guard.")
     return "\n".join(lines)

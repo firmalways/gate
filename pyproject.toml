@@ -10,6 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 dependencies = []
+
 keywords = ["pdpa", "privacy", "pii", "thai", "llm", "gateway", "openai"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -17,6 +18,10 @@ classifiers = [
     "Topic :: Security",
     "Development Status :: 3 - Alpha",
 ]
+
+[project.optional-dependencies]
+pdf = ["pypdf>=4"]
+thai-ner = ["pythainlp>=5"]
 
 [project.scripts]
 firmalways-gate = "firmalways_gate.cli:main"
