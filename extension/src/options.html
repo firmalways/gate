@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>FirmAlways Gate settings</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; max-width: 520px; margin: 24px auto; padding: 0 16px; color: #1d2939; }
+    label { display: block; margin-top: 14px; font-weight: 600; }
+    input[type=text], input[type=password] { width: 100%; padding: 8px; box-sizing: border-box; }
+    small { color: #475467; font-weight: 400; }
+    button { margin-top: 18px; padding: 8px 16px; }
+    #status { margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <h1>FirmAlways Gate</h1>
+  <p>ส่วนขยายนี้ส่งข้อความที่คุณวางไปตรวจที่ Gate ของคุณเอง ไม่ส่งไปที่อื่น</p>
+  <label>Gate URL <small>(เช่น http://127.0.0.1:8787)</small>
+    <input id="gateUrl" type="text">
+  </label>
+  <label>Gate API key <small>(ค่า FIRMALWAYS_GATE_API_KEY ถ้าตั้งไว้)</small>
+    <input id="apiKey" type="password" autocomplete="off">
+  </label>
+  <label><input id="failOpen" type="checkbox"> ถ้า Gate ไม่ทำงาน ให้วางข้อความเดิมโดยไม่ตรวจ <small>(ไม่แนะนำ)</small></label>
+  <button id="save">บันทึก</button><span id="status"></span>
+  <script src="options.js"></script>
+</body>
+</html>

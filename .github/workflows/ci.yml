@@ -39,4 +39,4 @@ jobs:
         with:
           node-version: "22"
       - name: Browser extension logic tests
-        run: node --test extension/test/
+        run: node --test extension/test/*.test.js
