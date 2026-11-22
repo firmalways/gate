@@ -8,6 +8,17 @@ Implementation notes that differ from the first draft:
 - Thai names use title-based rules (นาย, นางสาว, คุณ, ...) with stop lists; Thai NER remains a planned optional extra.
 - The Presidio comparison is not implemented yet.
 
+## v0.2.0 additions (22 November 2026)
+
+- **PDPA s.26 sensitive data** (`detectors/sensitive.py`): keyword lists per category; reported only when the same text holds a person identifier; blocked by default. A title-based name that swallows a sensitive term is trimmed so the term is still reported.
+- **Response scanning** (`engine.scan_response`, `ResponseScanner`): values in the answer that were not in the request (masked or allowed) are redacted per `[response]` policy; streaming holds back 200 characters plus any entity crossing the cut.
+- **Files** (`files.py`): `file` content parts with inline `file_data` are extracted (text, DOCX by regex over `word/document.xml` with a size cap, PDF via optional pypdf), masked, and replaced by a text part. Anything unreadable is refused.
+- **More detectors**: passport, licence plate, LINE ID, IP address, juristic tax ID.
+- **Thai NER extra** (`detectors/thai_ner.py`): PyThaiNLP `thainer`, passed to `analyze(extra_detectors=...)` per Gate instance.
+- **Clients** (`[[clients]]`): one key per app or team, fail closed when a key variable is unset, client name in the audit log, and a `gate_for_client` hook so a separate product can choose a policy per client.
+- **Browser extension** (`extension/`): paste interception through `/v1/firmalways/preview`, tab-wide placeholder numbering, on-screen restoration outside editable fields, code-point to UTF-16 offset conversion.
+- **Benchmarks**: curated v0 set and a Presidio comparison (`docs/benchmark.md`).
+
 ## 1. Requirements
 
 ### Functional

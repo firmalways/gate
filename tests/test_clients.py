@@ -71,6 +71,15 @@ class ClientKeysTest(unittest.TestCase):
         self.assertIn("hr", clients)
         self.assertIn("sales", clients)
 
+    def test_clients_without_keys_fail_closed(self):
+        policy = Policy.from_dict({"clients": [{"name": "x", "api_key_env": "UNSET_GATE_KEY_FOR_TEST"}]})
+        server = create_server(policy, "127.0.0.1", 0)
+        try:
+            self.assertIsNone(server.authenticate(""))
+            self.assertIsNone(server.authenticate("anything"))
+        finally:
+            server.server_close()
+
     def test_invalid_clients(self):
         for data in ({"clients": [{"name": "a"}]}, {"clients": [{"name": "a", "api_key_env": "X"}] * 2}, {"clients": {}}):
             with self.assertRaises(PolicyError):

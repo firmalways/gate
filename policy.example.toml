@@ -6,9 +6,12 @@ default_action = "mask"   # used for entity types not listed below
 [detection]
 min_score = 0.5           # ignore detections below this confidence (0–1)
 lenient_thai_id = true    # also treat 13-digit numbers that fail the checksum as IDs (mistyped IDs are still personal data)
+sensitive_requires_identifier = true  # report PDPA s.26 terms (health, religion ...) only next to a person identifier
+thai_ner = false          # true = also find untitled names with PyThaiNLP (pip install "firmalways-gate[thai-ner]")
 
 [content]
-allow_non_text = false    # images and files cannot be inspected; false = refuse requests that contain them
+allow_non_text = false    # images (and files when files = "block") cannot be inspected; false = refuse them
+files = "extract"         # "extract": read text from txt/csv/md/json/docx/pdf, mask it, send it as text; "block": refuse files
 
 [entities]
 THAI_NATIONAL_ID = "mask"
@@ -18,13 +21,45 @@ BANK_ACCOUNT = "mask"
 CREDIT_CARD = "mask"
 PERSON = "mask"
 THAI_ADDRESS = "mask"
+PASSPORT = "mask"
+LICENSE_PLATE = "mask"
+LINE_ID = "mask"
+IP_ADDRESS = "mask"
+TAX_ID = "mask"
 SECRET = "block"
+# PDPA section 26 sensitive data next to a person identifier (default: block)
+SENSITIVE_HEALTH = "block"
+SENSITIVE_RELIGION = "block"
+SENSITIVE_CRIMINAL = "block"
+SENSITIVE_DISABILITY = "block"
+SENSITIVE_BIOMETRIC = "block"
+SENSITIVE_GENETIC = "block"
+SENSITIVE_POLITICAL = "block"
+SENSITIVE_UNION = "block"
+SENSITIVE_SEXUAL = "block"
+SENSITIVE_RACE = "block"
+
+[response]
+scan = true               # also inspect AI answers
+default_action = "allow"  # for new values (not in the request) of types not listed below: "allow" or "mask"
+
+[response.entities]       # new values of these types are redacted as «REDACTED_TYPE»
+SECRET = "mask"
+THAI_NATIONAL_ID = "mask"
+CREDIT_CARD = "mask"
+BANK_ACCOUNT = "mask"
+PASSPORT = "mask"
 
 [audit]
 path = "firmalways-audit.jsonl"   # content-free JSON Lines; "" disables, "-" writes to stdout
 
 [server]
 max_body_bytes = 2000000
+
+# One key per application or team. When [[clients]] is set, FIRMALWAYS_GATE_API_KEY is not used.
+# [[clients]]
+# name = "hr-portal"
+# api_key_env = "GATE_KEY_HR"
 
 # Only the models listed here can be used. Gate holds the provider key; clients never see it.
 [[upstreams]]

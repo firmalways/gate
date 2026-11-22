@@ -1,5 +1,7 @@
 # FirmAlways Gate
 
+[![CI](https://github.com/piyawatSritavong/FirmAlways-Gate/actions/workflows/ci.yml/badge.svg)](https://github.com/piyawatSritavong/FirmAlways-Gate/actions/workflows/ci.yml)
+
 **Open-source AI privacy gateway for Thai personal data (PDPA).**
 ด่านกรองข้อมูลส่วนบุคคลภาษาไทย ก่อนส่งข้อความไปหา AI — ตรวจจับ ซ่อน ส่งต่อ แล้วคืนค่าในคำตอบ โค้ดเปิดให้ตรวจสอบได้ทุกบรรทัด
 
@@ -9,7 +11,7 @@ AI ได้รับ:  ร่างอีเมลถึงนางสาว«
 คุณได้รับ:  คำตอบของ AI ที่ใส่ชื่อ เลขบัตร และเบอร์จริงกลับคืนให้แล้ว
 ```
 
-> **Status: alpha (v0.1.0).** Gate helps reduce the risk of sending personal data to AI providers and supports PDPA work. It does **not** make an organization "PDPA compliant", and no detector finds 100% of personal data. Read [Known limits](#known-limits) before using it with real data.
+> **Status: alpha (v0.2.0).** Gate helps reduce the risk of sending personal data to AI providers and supports PDPA work. It does **not** make an organization "PDPA compliant", and no detector finds 100% of personal data. Read [Known limits](#known-limits) before using it with real data.
 
 ## Why
 
@@ -21,12 +23,16 @@ AI ได้รับ:  ร่างอีเมลถึงนางสาว«
 
 | | |
 |---|---|
-| Detects | Thai national ID (13 digits + checksum, Thai digits, any grouping), Thai phones (mobile, landline, +66), email, Thai bank accounts, payment cards (Luhn), secrets (API keys, tokens, private keys, passwords), person names with Thai/English titles, Thai addresses |
+| Detects | Thai national ID (13 digits + checksum, Thai digits, any grouping), juristic tax ID, Thai phones (mobile, landline, +66), email, Thai bank accounts, payment cards (Luhn), passports, Thai licence plates, LINE IDs, IP addresses, secrets (API keys, tokens, private keys, passwords), person names with Thai/English titles (optional Thai NER for untitled names), Thai addresses |
+| PDPA s.26 | Health, religion, criminal record, disability, biometric, genetic, political, union, sexual and race data — reported when it appears next to a person identifier, **blocked by default** |
 | Masks | Replaces values with `«TYPE_N»` placeholders; the same value keeps the same placeholder within a request |
 | Restores | Puts real values back into the AI's answer locally, including streamed answers and tool-call arguments |
-| Enforces | Per-type policy (`allow` / `mask` / `block`), a model allowlist, refusal of images/files it cannot inspect, fail-closed on errors |
+| Scans answers | Redacts new IDs, cards, bank accounts, passports and secrets that the AI produces but you did not send (`«REDACTED_TYPE»`) |
+| Files | Reads text from attached txt/csv/md/json, DOCX and PDF (optional `pypdf`), masks it and forwards it as text; refuses images and files it cannot read |
+| Enforces | Per-type policy (`allow` / `mask` / `block`), a model allowlist, per-client keys (`[[clients]]`), fail-closed on errors |
 | Proxies | OpenAI-compatible `/v1/chat/completions` (streaming and non-streaming): change only `base_url` |
-| Audits | JSON Lines with counts per data type, model, action and latency — never prompt or answer content |
+| Audits | JSON Lines with counts per data type, model, client, action and latency — never prompt or answer content |
+| Browser | A Chrome/Edge extension masks pasted text on ChatGPT, Claude and Gemini through your Gate ([extension/](extension/)) |
 
 Detection adds about 2 ms for a 4,000-character prompt (p95, Apple Silicon).
 
@@ -36,6 +42,12 @@ Requires Python 3.11+.
 
 ```bash
 pip install git+https://github.com/piyawatSritavong/FirmAlways-Gate.git
+```
+
+Optional extras: `[pdf]` for PDF attachments (pypdf), `[thai-ner]` for untitled Thai names (PyThaiNLP).
+
+```bash
+pip install "firmalways-gate[pdf,thai-ner] @ git+https://github.com/piyawatSritavong/FirmAlways-Gate.git"
 ```
 
 ## Try it in one minute (no API key, nothing leaves your machine)
@@ -120,17 +132,19 @@ Errors use the OpenAI error shape with `type: "firmalways_gate"` and codes `bloc
 ## Benchmark
 
 ```bash
-firmalways-gate benchmark
+firmalways-gate benchmark --dataset curated
 ```
 
-Runs a synthetic Thai dataset (generated values, no real people) including hard negatives such as คุณภาพ, นายจ้าง, ขอบคุณ, order numbers and prices. Current result: 100% precision and recall on 313 samples. **This is optimistic**: the same authors wrote the detectors and the templates. It is a regression guard. A human-labelled dataset and a comparison with Microsoft Presidio are next.
+On a curated set of 50 hand-written Thai prompts, Gate finds 94% of labelled values with no false positives (98% with the Thai NER extra); Microsoft Presidio in its default English setup finds 54%. Details, caveats and how to reproduce: [docs/benchmark.md](docs/benchmark.md). The curated set is written by the maintainers and not yet externally annotated.
 
 ## Known limits
 
 - Context can still leak: masking a name does not hide a confidential fact in the same sentence.
-- Names are found only after a title (นาย, นางสาว, คุณ, ด.ช., Mr. ...). Untitled names, and names starting with common words in the stop lists, are missed. Thai NER is planned.
+- Without the Thai NER extra, names are found only after a title (นาย, นางสาว, คุณ, ด.ช., Mr. ...); names starting with common words in the stop lists are missed.
+- PDPA s.26 detection uses keyword lists: it is a heuristic, not a classifier. Review the lists for your organisation.
 - Bank accounts without the `XXX-X-XXXXX-X` format are found only near a keyword (บัญชี, ธนาคาร, bank names).
-- Images, PDFs and other files are not inspected; by default requests containing them are refused.
+- Images are not inspected (no OCR) and are refused by default; so are uploaded `file_id` references. Scanned PDFs without a text layer yield no text.
+- Streaming answers are delayed by up to 200 characters while Gate scans them.
 - Only traffic sent through Gate is protected.
 - The server uses Python's standard-library HTTP server: suitable for a team or department behind TLS termination, not yet for high-traffic public exposure.
 
@@ -141,6 +155,10 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
 Design: [docs/architecture.md](docs/architecture.md)
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability privately.
 
 ## License
 

@@ -58,12 +58,12 @@ class GateHTTPServer(ThreadingHTTPServer):
 
     def authenticate(self, token: str) -> str | None:
         """Return the client name for ``token``, ``""`` when no auth is configured, or None if refused."""
-        clients = [(c.name, c.api_key()) for c in self.policy.clients]
-        clients = [(name, key) for name, key in clients if key]
-        if clients:
-            for name, key in clients:
-                if hmac.compare_digest(token.encode(), key.encode()):
-                    return name
+        if self.policy.clients:
+            # Fail closed: a client whose key variable is unset can never authenticate.
+            for client in self.policy.clients:
+                key = client.api_key()
+                if key and hmac.compare_digest(token.encode(), key.encode()):
+                    return client.name
             return None
         if self.client_api_key:
             return "default" if hmac.compare_digest(token.encode(), self.client_api_key.encode()) else None

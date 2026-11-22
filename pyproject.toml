@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "firmalways-gate"
-version = "0.1.0"
+version = "0.2.0"
 description = "Open-source AI privacy gateway for Thai personal data (PDPA): detect, mask, forward, restore."
 readme = "README.md"
 license = "Apache-2.0"
