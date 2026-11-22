@@ -57,7 +57,10 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         loopback = ipaddress.ip_address(args.host).is_loopback
     except ValueError:
         loopback = args.host == "localhost"
-    if not client_key and not loopback:
+    for client in policy.clients:
+        state = "" if client.api_key() else f"  (WARNING: environment variable {client.api_key_env} is not set)"
+        print(f"  client {client.name}: key from {client.api_key_env}{state}", file=err)
+    if not client_key and not policy.clients and not loopback:
         print(f"WARNING: listening on {args.host} without {CLIENT_KEY_ENV}; anyone on the network can use it.", file=err)
     try:
         server.serve_forever()

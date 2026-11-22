@@ -78,6 +78,17 @@ class Upstream:
 
 
 @dataclass(frozen=True)
+class Client:
+    """An application or team that calls Gate with its own key (``[[clients]]``)."""
+
+    name: str
+    api_key_env: str
+
+    def api_key(self) -> str | None:
+        return os.environ.get(self.api_key_env)
+
+
+@dataclass(frozen=True)
 class Policy:
     default_action: str = "mask"
     entity_actions: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_ENTITY_ACTIONS))
@@ -91,6 +102,7 @@ class Policy:
     response_default_action: str = "allow"
     response_entity_actions: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_RESPONSE_ACTIONS))
     upstreams: tuple[Upstream, ...] = ()
+    clients: tuple[Client, ...] = ()
     audit_path: str | None = None
     max_body_bytes: int = 2_000_000
 
@@ -149,6 +161,17 @@ class Policy:
         if len(names) != len(set(names)):
             raise PolicyError("upstream names must be unique")
 
+        raw_clients = data.get("clients", [])
+        if not isinstance(raw_clients, list):
+            raise PolicyError("clients must be an array of tables ([[clients]])")
+        clients = []
+        for i, raw in enumerate(raw_clients):
+            if not isinstance(raw, dict) or not all(isinstance(raw.get(k), str) and raw[k] for k in ("name", "api_key_env")):
+                raise PolicyError(f"clients[{i}] needs a name and an api_key_env")
+            clients.append(Client(raw["name"], raw["api_key_env"]))
+        if len({c.name for c in clients}) != len(clients):
+            raise PolicyError("client names must be unique")
+
         return cls(
             default_action=default_action,
             entity_actions=actions,
@@ -164,6 +187,7 @@ class Policy:
             response_default_action=response_default,
             response_entity_actions=response_actions,
             upstreams=upstreams,
+            clients=tuple(clients),
             audit_path=audit_path or None,
             max_body_bytes=max_body,
         )

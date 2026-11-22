@@ -20,7 +20,7 @@ import urllib.error
 import urllib.request
 import uuid
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlsplit
@@ -45,13 +45,29 @@ class GateHTTPServer(ThreadingHTTPServer):
         audit: AuditLog | None = None,
         client_api_key: str | None = None,
         verbose: bool = False,
+        gate_for_client: Callable[[str | None], Gate] | None = None,
     ) -> None:
         self.policy = policy
         self.gate = Gate(policy)
         self.audit = audit if audit is not None else AuditLog(policy.audit_path)
         self.client_api_key = client_api_key or None
         self.verbose = verbose
+        # Extension point: choose a Gate (and so a policy) per authenticated client.
+        self.gate_for_client = gate_for_client or (lambda client: self.gate)
         super().__init__(address, _Handler)
+
+    def authenticate(self, token: str) -> str | None:
+        """Return the client name for ``token``, ``""`` when no auth is configured, or None if refused."""
+        clients = [(c.name, c.api_key()) for c in self.policy.clients]
+        clients = [(name, key) for name, key in clients if key]
+        if clients:
+            for name, key in clients:
+                if hmac.compare_digest(token.encode(), key.encode()):
+                    return name
+            return None
+        if self.client_api_key:
+            return "default" if hmac.compare_digest(token.encode(), self.client_api_key.encode()) else None
+        return ""
 
     @property
     def url(self) -> str:
@@ -127,15 +143,15 @@ class _Handler(BaseHTTPRequestHandler):
         self._send_json(status, {"error": {"message": message, "type": "firmalways_gate", "code": code, **extra}})
 
     def _authorized(self) -> bool:
-        expected = self.server.client_api_key
-        if not expected:
-            return True
         header = self.headers.get("Authorization", "")
         token = header[7:] if header.startswith("Bearer ") else ""
-        if hmac.compare_digest(token.encode(), expected.encode()):
-            return True
-        self._error(401, "unauthorized", "Missing or invalid Gate API key")
-        return False
+        client = self.server.authenticate(token)
+        if client is None:
+            self._error(401, "unauthorized", "Missing or invalid Gate API key")
+            return False
+        self.client = client or None
+        self.gate = self.server.gate_for_client(self.client)
+        return True
 
     def _read_json(self) -> dict[str, Any] | None:
         length = self.headers.get("Content-Length")
@@ -167,7 +183,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "ok", "version": __version__})
         elif path in ("/v1/models", "/models"):
             if self._authorized():
-                models = [{"id": m, "object": "model", "owned_by": name} for m, name in self.server.policy.models]
+                models = [{"id": m, "object": "model", "owned_by": name} for m, name in self.gate.policy.models]
                 self._send_json(200, {"object": "list", "data": models})
         else:
             self._error(404, "not_found", "Unknown path")
@@ -192,7 +208,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._error(400, "invalid_request", 'Body must be {"text": "..."}')
             return
         try:
-            result = self.server.gate.preview(text)
+            result = self.gate.preview(text)
         except Exception:  # noqa: BLE001 - fail closed, never echo the input
             self._error(500, "detection_failed", "Gate could not inspect the text")
             return
@@ -209,12 +225,13 @@ class _Handler(BaseHTTPRequestHandler):
         messages = body.get("messages")
         stream = body.get("stream") is True
         user = audit.user_ref(self.headers.get("X-FirmAlways-User") or body.get("user"))
-        upstream = self.server.policy.route(model) if isinstance(model, str) else None
+        upstream = self.gate.policy.route(model) if isinstance(model, str) else None
 
         def record(action: str, status: int, **fields: Any) -> None:
             audit.write(
                 request_id=request_id,
                 user=user,
+                client=self.client,
                 model=model if isinstance(model, str) else None,
                 upstream=upstream.name if upstream else None,
                 action=action,
@@ -234,7 +251,7 @@ class _Handler(BaseHTTPRequestHandler):
 
         pseudonymizer = Pseudonymizer()
         try:
-            protected, protection = self.server.gate.protect_messages(messages, pseudonymizer)
+            protected, protection = self.gate.protect_messages(messages, pseudonymizer)
         except ContentNotAllowed as exc:
             record("blocked", 422, reason="non_text_content")
             self._error(422, "content_not_allowed", str(exc))
@@ -292,7 +309,7 @@ class _Handler(BaseHTTPRequestHandler):
             record("forwarded", 200, entities=counts, masked=protection.masked)
             self._send_bytes(200, raw, response.headers.get("Content-Type", "text/plain"), headers)
             return
-        restore_completion(data, pseudonymizer, self.server.gate, redacted)
+        restore_completion(data, pseudonymizer, self.gate, redacted)
         record("forwarded", 200, entities=counts, masked=protection.masked, response_redacted=dict(redacted) or None,
                **extra_audit)
         headers["X-FirmAlways-Response-Redacted"] = _format_counts(dict(redacted))
@@ -316,7 +333,7 @@ class _Handler(BaseHTTPRequestHandler):
 
         restorers: dict[tuple[Any, ...], _Pipe] = {}
         template: dict[str, Any] | None = None
-        gate = self.server.gate
+        gate = self.gate
 
         def restorer(key: tuple[Any, ...]) -> _Pipe:
             if key not in restorers:
@@ -408,5 +425,8 @@ def create_server(
     audit: AuditLog | None = None,
     client_api_key: str | None = None,
     verbose: bool = False,
+    gate_for_client: Callable[[str | None], Gate] | None = None,
 ) -> GateHTTPServer:
-    return GateHTTPServer((host, port), policy, audit=audit, client_api_key=client_api_key, verbose=verbose)
+    return GateHTTPServer(
+        (host, port), policy, audit=audit, client_api_key=client_api_key, verbose=verbose, gate_for_client=gate_for_client
+    )
