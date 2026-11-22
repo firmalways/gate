@@ -36,7 +36,7 @@ jobs:
       - run: python -m pip install --quiet build && python -m build --outdir dist .
       - name: Package the browser extension
         run: cd extension && zip -qr "../dist/firmalways-gate-extension-${GITHUB_REF_NAME}.zip" manifest.json src
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
