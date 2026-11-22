@@ -19,6 +19,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from collections import Counter
 from collections.abc import Iterable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -26,7 +27,7 @@ from urllib.parse import urlsplit
 
 from . import __version__
 from .audit import AuditLog
-from .engine import ContentNotAllowed, Gate, restore_completion
+from .engine import ContentNotAllowed, Gate, ResponseScanner, restore_completion
 from .policy import Policy, Upstream
 from .pseudonymize import Pseudonymizer, StreamRestorer
 
@@ -70,6 +71,28 @@ def open_upstream(upstream: Upstream, body: dict[str, Any], stream: bool):
         headers[upstream.auth_header] = f"Bearer {key}" if upstream.auth_header.lower() == "authorization" else key
     request = urllib.request.Request(upstream.chat_url, data=data, headers=headers, method="POST")
     return urllib.request.urlopen(request, timeout=upstream.timeout)
+
+
+class _Pipe:
+    """Restore placeholders, then (optionally) redact new personal data, for one streamed field."""
+
+    def __init__(self, restorer: StreamRestorer, scanner: ResponseScanner | None) -> None:
+        self._restorer = restorer
+        self._scanner = scanner
+
+    @property
+    def pending(self) -> bool:
+        return self._restorer.pending or bool(self._scanner and self._scanner.pending)
+
+    def feed(self, text: str) -> str:
+        out = self._restorer.feed(text)
+        return self._scanner.feed(out) if self._scanner else out
+
+    def flush(self) -> str:
+        out = self._restorer.flush()
+        if self._scanner:
+            out = self._scanner.feed(out) + self._scanner.flush()
+        return out
 
 
 def _format_counts(counts: dict[str, int]) -> str:
@@ -250,23 +273,28 @@ class _Handler(BaseHTTPRequestHandler):
             self._error(502, "upstream_unreachable", f"Could not reach upstream {upstream.name!r}")
             return
 
+        redacted: Counter[str] = Counter()
         try:
             with response:
                 if stream:
-                    self._relay_stream(response, pseudonymizer, headers)
-                    record("forwarded", 200, entities=counts, masked=protection.masked)
+                    self._relay_stream(response, pseudonymizer, headers, redacted)
+                    record("forwarded", 200, entities=counts, masked=protection.masked,
+                           response_redacted=dict(redacted) or None)
                     return
                 raw = response.read()
         except (BrokenPipeError, ConnectionResetError, socket.timeout):
             record("upstream_error", 499, reason="stream_interrupted", entities=counts, masked=protection.masked)
             return
-        record("forwarded", 200, entities=counts, masked=protection.masked)
         try:
             data = json.loads(raw)
         except ValueError:
+            record("forwarded", 200, entities=counts, masked=protection.masked)
             self._send_bytes(200, raw, response.headers.get("Content-Type", "text/plain"), headers)
-        else:
-            self._send_json(200, restore_completion(data, pseudonymizer), headers)
+            return
+        restore_completion(data, pseudonymizer, self.server.gate, redacted)
+        record("forwarded", 200, entities=counts, masked=protection.masked, response_redacted=dict(redacted) or None)
+        headers["X-FirmAlways-Response-Redacted"] = _format_counts(dict(redacted))
+        self._send_json(200, data, headers)
 
     # ----- streaming ------------------------------------------------------
 
@@ -274,7 +302,9 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(text.encode("utf-8"))
         self.wfile.flush()
 
-    def _relay_stream(self, response: Iterable[bytes], pseudonymizer: Pseudonymizer, headers: dict[str, str]) -> None:
+    def _relay_stream(
+        self, response: Iterable[bytes], pseudonymizer: Pseudonymizer, headers: dict[str, str], redacted: Counter[str]
+    ) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
@@ -282,12 +312,14 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_header(name, value)
         self.end_headers()
 
-        restorers: dict[tuple[Any, ...], StreamRestorer] = {}
+        restorers: dict[tuple[Any, ...], _Pipe] = {}
         template: dict[str, Any] | None = None
+        gate = self.server.gate
 
-        def restorer(key: tuple[Any, ...]) -> StreamRestorer:
+        def restorer(key: tuple[Any, ...]) -> _Pipe:
             if key not in restorers:
-                restorers[key] = pseudonymizer.stream_restorer()
+                scanner = gate.response_scanner(pseudonymizer, redacted) if gate.policy.response_scan else None
+                restorers[key] = _Pipe(pseudonymizer.stream_restorer(), scanner)
             return restorers[key]
 
         for raw in response:
@@ -316,7 +348,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._flush_remaining(restorers, template)
 
     @staticmethod
-    def _restore_choice(choice: dict[str, Any], restorer, restorers: dict[tuple[Any, ...], StreamRestorer]) -> None:
+    def _restore_choice(choice: dict[str, Any], restorer, restorers: dict[tuple[Any, ...], _Pipe]) -> None:
         index = choice.get("index", 0)
         delta = choice.get("delta")
         if not isinstance(delta, dict):
@@ -346,7 +378,7 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 delta.setdefault("tool_calls", []).append({"index": key[2], "function": {"arguments": rest}})
 
-    def _flush_remaining(self, restorers: dict[tuple[Any, ...], StreamRestorer], template: dict[str, Any] | None) -> None:
+    def _flush_remaining(self, restorers: dict[tuple[Any, ...], _Pipe], template: dict[str, Any] | None) -> None:
         by_choice: dict[Any, dict[str, Any]] = {}
         for key, item in list(restorers.items()):
             rest = item.flush()

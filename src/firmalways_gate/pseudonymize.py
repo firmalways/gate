@@ -34,9 +34,20 @@ class Pseudonymizer:
         self._counters: Counter[str] = Counter()
         self._restore_re: re.Pattern[str] | None = None
 
+        self._seen: set[tuple[str, str]] = set()
+
     @property
     def tokens(self) -> tuple[str, ...]:
         return tuple(self._value_by_token)
+
+    def note(self, entity: Entity) -> None:
+        """Remember a value that appeared in the request but was not masked (action ``allow``)."""
+        self._seen.add(_key(entity))
+
+    def knows(self, entity: Entity) -> bool:
+        """True if this value appeared in the request (masked or allowed)."""
+        key = _key(entity)
+        return key in self._token_by_key or key in self._seen
 
     def placeholder_for(self, entity: Entity) -> str:
         key = _key(entity)

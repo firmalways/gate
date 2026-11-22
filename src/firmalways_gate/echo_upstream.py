@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -34,8 +35,16 @@ def _last_user_text(messages: Any) -> str:
 class EchoUpstreamServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int], *, verbose: bool = False, chunk_size: int = 5) -> None:
+    def __init__(
+        self,
+        address: tuple[str, int],
+        *,
+        verbose: bool = False,
+        chunk_size: int = 5,
+        responder: Callable[[dict[str, Any]], str] | None = None,
+    ) -> None:
         self.received: list[dict[str, Any]] = []
+        self.responder = responder
         self.verbose = verbose
         self.chunk_size = chunk_size
         self._lock = threading.Lock()
@@ -79,7 +88,8 @@ class _EchoHandler(BaseHTTPRequestHandler):
             return
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         self.server.remember(body)
-        text = PREFIX + _last_user_text(body.get("messages"))
+        responder = self.server.responder
+        text = responder(body) if responder else PREFIX + _last_user_text(body.get("messages"))
         completion_id = "chatcmpl-echo-" + uuid.uuid4().hex[:12]
         created = int(time.time())
         model = body.get("model", MODEL)

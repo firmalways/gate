@@ -35,7 +35,28 @@ class Gate:
         self.policy = policy or Policy()
 
     def analyze(self, text: str) -> list[Entity]:
-        return analyze(text, min_score=self.policy.min_score, lenient_thai_id=self.policy.lenient_thai_id)
+        return analyze(
+            text,
+            min_score=self.policy.min_score,
+            lenient_thai_id=self.policy.lenient_thai_id,
+            sensitive_requires_identifier=self.policy.sensitive_requires_identifier,
+        )
+
+    def scan_response(self, text: str, pseudonymizer: Pseudonymizer, redacted: Counter[str] | None = None) -> str:
+        """Redact values in an AI answer that were not in the request, per ``[response]`` policy."""
+        if not self.policy.response_scan or not text:
+            return text
+        to_redact = [
+            e
+            for e in self.analyze(text)
+            if not pseudonymizer.knows(e) and self.policy.response_action_for(e.type) == "mask"
+        ]
+        if redacted is not None:
+            redacted.update(e.type for e in to_redact)
+        return redact(text, to_redact)
+
+    def response_scanner(self, pseudonymizer: Pseudonymizer, redacted: Counter[str]) -> ResponseScanner:
+        return ResponseScanner(self, pseudonymizer, redacted)
 
     def protect_text(
         self, text: str, pseudonymizer: Pseudonymizer, protection: Protection | None = None
@@ -50,6 +71,8 @@ class Gate:
                 protection.blocked_types.add(entity.type)
             elif action == "mask":
                 to_mask.append(entity)
+            else:
+                pseudonymizer.note(entity)
         protection.masked += len(to_mask)
         return pseudonymizer.mask(text, to_mask), protection
 
@@ -107,23 +130,81 @@ class Gate:
         }
 
 
-def restore_completion(data: Any, pseudonymizer: Pseudonymizer) -> Any:
-    """Restore placeholders in a non-streaming chat completion response, in place."""
+def redact(text: str, entities: list[Entity]) -> str:
+    """Replace entity spans with ``«REDACTED_TYPE»`` (not restorable)."""
+    parts: list[str] = []
+    pos = 0
+    for entity in sorted(entities, key=lambda e: e.start):
+        parts.append(text[pos : entity.start])
+        parts.append(f"«REDACTED_{entity.type}»")
+        pos = entity.end
+    parts.append(text[pos:])
+    return "".join(parts)
+
+
+class ResponseScanner:
+    """Redact new personal data from streamed answer text.
+
+    Holds back the last ``HOLD`` characters (and any entity crossing that point)
+    so a value split across chunks is still seen whole. This delays streamed
+    output by up to ``HOLD`` characters.
+    """
+
+    HOLD = 200
+
+    def __init__(self, gate: Gate, pseudonymizer: Pseudonymizer, redacted: Counter[str]) -> None:
+        self._gate = gate
+        self._p = pseudonymizer
+        self._redacted = redacted
+        self._buffer = ""
+
+    @property
+    def pending(self) -> bool:
+        return bool(self._buffer)
+
+    def feed(self, text: str) -> str:
+        self._buffer += text
+        if len(self._buffer) <= self.HOLD:
+            return ""
+        cut = len(self._buffer) - self.HOLD
+        entities = self._gate.analyze(self._buffer)
+        for entity in entities:
+            if entity.start < cut < entity.end:
+                cut = entity.start
+        ready, self._buffer = self._buffer[:cut], self._buffer[cut:]
+        return self._gate.scan_response(ready, self._p, self._redacted)
+
+    def flush(self) -> str:
+        ready, self._buffer = self._buffer, ""
+        return self._gate.scan_response(ready, self._p, self._redacted)
+
+
+def restore_completion(data: Any, pseudonymizer: Pseudonymizer, gate: Gate | None = None,
+                       redacted: Counter[str] | None = None) -> Any:
+    """Restore placeholders in a non-streaming chat completion, in place.
+
+    With ``gate``, also redact new personal data from the answer per ``[response]`` policy.
+    """
     if not isinstance(data, dict):
         return data
+
+    def fix(text: str) -> str:
+        text = pseudonymizer.restore(text)
+        return gate.scan_response(text, pseudonymizer, redacted) if gate is not None else text
+
     for choice in data.get("choices") or []:
         message = choice.get("message") if isinstance(choice, dict) else None
         if not isinstance(message, dict):
             continue
         content = message.get("content")
         if isinstance(content, str):
-            message["content"] = pseudonymizer.restore(content)
+            message["content"] = fix(content)
         elif isinstance(content, list):
             for part in content:
                 if isinstance(part, dict) and isinstance(part.get("text"), str):
-                    part["text"] = pseudonymizer.restore(part["text"])
+                    part["text"] = fix(part["text"])
         for call in message.get("tool_calls") or []:
             function = call.get("function") if isinstance(call, dict) else None
             if isinstance(function, dict) and isinstance(function.get("arguments"), str):
-                function["arguments"] = pseudonymizer.restore(function["arguments"])
+                function["arguments"] = fix(function["arguments"])
     return data

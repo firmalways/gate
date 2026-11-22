@@ -15,6 +15,15 @@ from ..entities import Entity
 from ._common import DIGIT, digits_only
 
 ENTITY_TYPE = "THAI_NATIONAL_ID"
+# A 13-digit juristic-person tax ID (starts with 0) near a tax/company keyword.
+# It identifies a company, not a person, so it is reported separately.
+TAX_ID_TYPE = "TAX_ID"
+
+_TAX_CONTEXT = re.compile(
+    r"(?:เลขประจำตัวผู้เสียภาษี|เลขผู้เสียภาษี|ผู้เสียภาษี|เลขทะเบียนนิติบุคคล|นิติบุคคล|tax\s*id|tin)"
+    r"[^0-9๐-๙\n]{0,30}$",
+    re.IGNORECASE,
+)
 
 _SEP = "[-  ]?"
 _PATTERN = re.compile(
@@ -45,5 +54,8 @@ def detect(text: str, *, require_checksum: bool = True) -> list[Entity]:
         valid = is_valid_thai_id(raw)
         if require_checksum and not valid:
             continue
-        found.append(Entity(ENTITY_TYPE, match.start(), match.end(), raw, 1.0 if valid else 0.5))
+        kind = ENTITY_TYPE
+        if digits_only(raw).startswith("0") and _TAX_CONTEXT.search(text, max(0, match.start() - 60), match.start()):
+            kind = TAX_ID_TYPE
+        found.append(Entity(kind, match.start(), match.end(), raw, 1.0 if valid else 0.5))
     return found

@@ -22,7 +22,34 @@ DEFAULT_ENTITY_ACTIONS: dict[str, str] = {
     "CREDIT_CARD": "mask",
     "PERSON": "mask",
     "THAI_ADDRESS": "mask",
+    "PASSPORT": "mask",
+    "LICENSE_PLATE": "mask",
+    "LINE_ID": "mask",
+    "IP_ADDRESS": "mask",
+    "TAX_ID": "mask",
     "SECRET": "block",
+    # PDPA section 26 sensitive data (reported only next to a personal identifier)
+    "SENSITIVE_HEALTH": "block",
+    "SENSITIVE_RELIGION": "block",
+    "SENSITIVE_CRIMINAL": "block",
+    "SENSITIVE_DISABILITY": "block",
+    "SENSITIVE_BIOMETRIC": "block",
+    "SENSITIVE_GENETIC": "block",
+    "SENSITIVE_POLITICAL": "block",
+    "SENSITIVE_UNION": "block",
+    "SENSITIVE_SEXUAL": "block",
+    "SENSITIVE_RACE": "block",
+}
+
+RESPONSE_ACTIONS = ("allow", "mask")
+
+# New values (not present in the request) that are redacted from AI answers by default.
+DEFAULT_RESPONSE_ACTIONS: dict[str, str] = {
+    "SECRET": "mask",
+    "THAI_NATIONAL_ID": "mask",
+    "CREDIT_CARD": "mask",
+    "BANK_ACCOUNT": "mask",
+    "PASSPORT": "mask",
 }
 
 
@@ -56,13 +83,20 @@ class Policy:
     entity_actions: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_ENTITY_ACTIONS))
     min_score: float = 0.5
     lenient_thai_id: bool = True
+    sensitive_requires_identifier: bool = True
     allow_non_text: bool = False
+    response_scan: bool = True
+    response_default_action: str = "allow"
+    response_entity_actions: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_RESPONSE_ACTIONS))
     upstreams: tuple[Upstream, ...] = ()
     audit_path: str | None = None
     max_body_bytes: int = 2_000_000
 
     def action_for(self, entity_type: str) -> str:
         return self.entity_actions.get(entity_type, self.default_action)
+
+    def response_action_for(self, entity_type: str) -> str:
+        return self.response_entity_actions.get(entity_type, self.response_default_action)
 
     def route(self, model: str) -> Upstream | None:
         return next((u for u in self.upstreams if u.allows(model)), None)
@@ -83,6 +117,19 @@ class Policy:
         min_score = detection.get("min_score", 0.5)
         if not isinstance(min_score, (int, float)) or not 0 <= min_score <= 1:
             raise PolicyError("detection.min_score must be a number between 0 and 1")
+
+        response = _table(data, "response")
+        response_default = response.get("default_action", "allow")
+        if response_default not in RESPONSE_ACTIONS:
+            raise PolicyError("response.default_action must be allow or mask")
+        response_actions = dict(DEFAULT_RESPONSE_ACTIONS)
+        raw_response_entities = response.get("entities", {})
+        if not isinstance(raw_response_entities, dict):
+            raise PolicyError("[response.entities] must be a table")
+        for name, value in raw_response_entities.items():
+            if value not in RESPONSE_ACTIONS:
+                raise PolicyError(f"response.entities.{name} must be allow or mask; got {value!r}")
+            response_actions[str(name).upper()] = value
 
         audit_path = _table(data, "audit").get("path")
         if audit_path is not None and not isinstance(audit_path, str):
@@ -105,7 +152,13 @@ class Policy:
             entity_actions=actions,
             min_score=float(min_score),
             lenient_thai_id=_bool(detection.get("lenient_thai_id", True), "detection.lenient_thai_id"),
+            sensitive_requires_identifier=_bool(
+                detection.get("sensitive_requires_identifier", True), "detection.sensitive_requires_identifier"
+            ),
             allow_non_text=_bool(_table(data, "content").get("allow_non_text", False), "content.allow_non_text"),
+            response_scan=_bool(response.get("scan", True), "response.scan"),
+            response_default_action=response_default,
+            response_entity_actions=response_actions,
             upstreams=upstreams,
             audit_path=audit_path or None,
             max_body_bytes=max_body,
