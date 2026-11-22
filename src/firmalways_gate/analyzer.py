@@ -58,20 +58,6 @@ ENTITY_TYPES: tuple[str, ...] = (
 _OTHER_DETECTORS = (phone, email, bank_account, credit_card, secret, thai_name, thai_address, passport,
                     license_plate, line_id, ip_address)
 
-# Optional extra detectors (for example Thai NER) registered at runtime.
-_EXTRA_DETECTORS: list[Callable[[str], list[Entity]]] = []
-
-
-def register_detector(detector: Callable[[str], list[Entity]]) -> None:
-    if detector not in _EXTRA_DETECTORS:
-        _EXTRA_DETECTORS.append(detector)
-
-
-def unregister_detector(detector: Callable[[str], list[Entity]]) -> None:
-    if detector in _EXTRA_DETECTORS:
-        _EXTRA_DETECTORS.remove(detector)
-
-
 def analyze(
     text: str,
     *,
@@ -79,12 +65,13 @@ def analyze(
     lenient_thai_id: bool = True,
     entity_types: Iterable[str] | None = None,
     sensitive_requires_identifier: bool = True,
+    extra_detectors: Iterable[Callable[[str], list[Entity]]] = (),
 ) -> list[Entity]:
     """Return non-overlapping entities found in ``text``, ordered by position."""
     found = thai_id.detect(text, require_checksum=not lenient_thai_id)
     for detector in _OTHER_DETECTORS:
         found.extend(detector.detect(text))
-    for extra in _EXTRA_DETECTORS:
+    for extra in extra_detectors:
         found.extend(extra(text))
     found = [e for e in found if e.score >= min_score]
     identified = any(e.type in IDENTIFIER_TYPES for e in found)

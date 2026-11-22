@@ -10,7 +10,7 @@ from typing import Any
 from .analyzer import analyze
 from .entities import Entity
 from .files import FileNotSupported, decode_data_url, extract_text
-from .policy import Policy
+from .policy import Policy, PolicyError
 from .pseudonymize import Pseudonymizer
 
 
@@ -36,6 +36,14 @@ class Protection:
 class Gate:
     def __init__(self, policy: Policy | None = None) -> None:
         self.policy = policy or Policy()
+        self._extra_detectors: list[Any] = []
+        if self.policy.thai_ner:
+            from .detectors.thai_ner import ThaiNER
+
+            try:
+                self._extra_detectors.append(ThaiNER())
+            except ImportError as exc:
+                raise PolicyError(str(exc)) from exc
 
     def analyze(self, text: str) -> list[Entity]:
         return analyze(
@@ -43,6 +51,7 @@ class Gate:
             min_score=self.policy.min_score,
             lenient_thai_id=self.policy.lenient_thai_id,
             sensitive_requires_identifier=self.policy.sensitive_requires_identifier,
+            extra_detectors=self._extra_detectors,
         )
 
     def scan_response(self, text: str, pseudonymizer: Pseudonymizer, redacted: Counter[str] | None = None) -> str:

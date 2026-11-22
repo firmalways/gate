@@ -85,7 +85,7 @@ def _cmd_echo(args: argparse.Namespace) -> int:
 def _cmd_benchmark(args: argparse.Namespace) -> int:
     from .benchmark import format_report, run
 
-    report = run(seed=args.seed, repeats=args.repeats, dataset=args.dataset)
+    report = run(seed=args.seed, repeats=args.repeats, dataset=args.dataset, thai_ner=args.thai_ner)
     print(json.dumps(report, ensure_ascii=False, indent=2) if args.json else format_report(report))
     return 0
 
@@ -118,6 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
     bench.add_argument("--seed", type=int, default=7)
     bench.add_argument("--repeats", type=int, default=30)
     bench.add_argument("--dataset", choices=("synthetic", "curated"), default="synthetic")
+    bench.add_argument("--thai-ner", action="store_true", help="also use the optional PyThaiNLP detector")
     bench.add_argument("--json", action="store_true")
     bench.set_defaults(func=_cmd_benchmark)
     return parser

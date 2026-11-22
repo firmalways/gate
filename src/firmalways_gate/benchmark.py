@@ -267,14 +267,20 @@ def evaluate_any_type(samples: list[Sample], detect: Callable[[str], list[tuple[
     }
 
 
-def run(seed: int = 7, repeats: int = 30, dataset: str = "synthetic") -> dict[str, Any]:
+def run(seed: int = 7, repeats: int = 30, dataset: str = "synthetic", thai_ner: bool = False) -> dict[str, Any]:
+    detect: Callable[[str], list[Entity]] = analyze
+    if thai_ner:
+        from .engine import Gate
+        from .policy import Policy
+
+        detect = Gate(Policy(thai_ner=True)).analyze
     if dataset == "curated":
         samples = load_curated()
-        report = evaluate(samples)
-        report["any_type"] = evaluate_any_type(samples, lambda text: [(e.start, e.end) for e in analyze(text)])
+        report = evaluate(samples, detect)
+        report["any_type"] = evaluate_any_type(samples, lambda text: [(e.start, e.end) for e in detect(text)])
         report["dataset"] = "curated"
         return report
-    report = evaluate(generate(seed, repeats))
+    report = evaluate(generate(seed, repeats), detect)
     report["dataset"] = "synthetic"
     return report
 

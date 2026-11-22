@@ -36,6 +36,14 @@ uv run --python 3.12 --with presidio-analyzer \
 
 Person names: precision 0.93, recall 0.78. The misses are by design of the current rules: a name without a title (`ส่งรายงานให้สมชาย`), the title `พี่`, a name starting with a stop word (`คุณมีนา`), and a following word taken as a surname (`นางสาวปิยะนุช เริ่มงาน`). The optional Thai NER extra targets the first case.
 
+## With the optional Thai NER extra
+
+`[detection] thai_ner = true` (PyThaiNLP `thainer`) on curated v0: any-type recall rises from 0.944 to 0.982 and precision falls from 1.000 to 0.982 (one false positive). Exact-span person scores drop (0.72) because the model's name boundaries differ from the labels, but more names are covered. Reproduce:
+
+```bash
+uv run --python 3.12 --with pythainlp --with python-crfsuite python -m firmalways_gate benchmark --dataset curated --thai-ner
+```
+
 ## Help wanted
 
 Externally annotated Thai prompts (with invented data) are the most valuable contribution: add lines to `curated_th.txt` using `[[TYPE:value]]` marks.

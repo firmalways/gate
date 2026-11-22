@@ -84,6 +84,7 @@ class Policy:
     min_score: float = 0.5
     lenient_thai_id: bool = True
     sensitive_requires_identifier: bool = True
+    thai_ner: bool = False
     allow_non_text: bool = False
     files: str = "extract"
     response_scan: bool = True
@@ -156,6 +157,7 @@ class Policy:
             sensitive_requires_identifier=_bool(
                 detection.get("sensitive_requires_identifier", True), "detection.sensitive_requires_identifier"
             ),
+            thai_ner=_bool(detection.get("thai_ner", False), "detection.thai_ner"),
             allow_non_text=_bool(_table(data, "content").get("allow_non_text", False), "content.allow_non_text"),
             files=_files(_table(data, "content").get("files", "extract")),
             response_scan=_bool(response.get("scan", True), "response.scan"),
