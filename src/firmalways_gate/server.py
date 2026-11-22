@@ -267,7 +267,8 @@ class _Handler(BaseHTTPRequestHandler):
         counts = dict(protection.counts)
         extra_audit = {"allowed": dict(protection.allowed) or None, "file_parts": protection.file_parts or None}
         if protection.blocked:
-            record("blocked", 422, reason="blocked_entity", entities=counts)
+            record("blocked", 422, reason="blocked_entity", entities=counts,
+                   blocked_types=sorted(protection.blocked_types))
             self._error(
                 422,
                 "blocked_entity",

@@ -20,7 +20,7 @@ from typing import Any
 HMAC_KEY_ENV = "FIRMALWAYS_AUDIT_HMAC_KEY"
 
 _ALLOWED_FIELDS = frozenset(
-    {"request_id", "user", "model", "upstream", "action", "status", "reason", "entities", "masked", "latency_ms", "stream", "response_redacted", "client", "file_parts", "allowed"}
+    {"request_id", "user", "model", "upstream", "action", "status", "reason", "entities", "masked", "latency_ms", "stream", "response_redacted", "client", "file_parts", "allowed", "blocked_types"}
 )
 
 
