@@ -13,6 +13,8 @@ from .audit import AuditLog
 from .engine import Gate
 from .policy import Policy, PolicyError, load_policy
 
+PRO_URL = "https://firmalways.meapplication.co.th/pro/"
+
 
 def _policy(path: str | None) -> Policy:
     return load_policy(path) if path else Policy()
@@ -62,6 +64,9 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         print(f"  client {client.name}: key from {client.api_key_env}{state}", file=err)
     if not client_key and not policy.clients and not loopback:
         print(f"WARNING: listening on {args.host} without {CLIENT_KEY_ENV}; anyone on the network can use it.", file=err)
+    if not os.environ.get("FIRMALWAYS_NO_PRO_HINT"):
+        print(f"Tip: department policies and PDPA reports for your DPO: FirmAlways Pro {PRO_URL}"
+              " (hide this line: FIRMALWAYS_NO_PRO_HINT=1)", file=err)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

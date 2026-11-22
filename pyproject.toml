@@ -27,7 +27,9 @@ thai-ner = ["pythainlp>=5"]
 firmalways-gate = "firmalways_gate.cli:main"
 
 [project.urls]
-Source = "https://github.com/piyawatSritavong/FirmAlways-Gate"
+Homepage = "https://firmalways.meapplication.co.th"
+Source = "https://github.com/firmalways/gate"
+Pro = "https://firmalways.meapplication.co.th/pro/"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/firmalways_gate"]

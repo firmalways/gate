@@ -5,7 +5,7 @@ FirmAlways Gate is a privacy tool, so we treat any way to get personal data past
 ## Reporting a vulnerability
 
 Please **do not open a public issue** for a vulnerability. Use GitHub's private reporting:
-**Security → Report a vulnerability** on https://github.com/piyawatSritavong/FirmAlways-Gate.
+**Security → Report a vulnerability** on https://github.com/firmalways/gate.
 
 Include the Gate version, your policy (with secrets removed), and a minimal input that reproduces the problem. Use **synthetic data only**: never send real personal data, real keys or real customer content in a report.
 

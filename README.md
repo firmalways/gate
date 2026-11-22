@@ -1,6 +1,6 @@
 # FirmAlways Gate
 
-[![CI](https://github.com/piyawatSritavong/FirmAlways-Gate/actions/workflows/ci.yml/badge.svg)](https://github.com/piyawatSritavong/FirmAlways-Gate/actions/workflows/ci.yml)
+[![CI](https://github.com/firmalways/gate/actions/workflows/ci.yml/badge.svg)](https://github.com/firmalways/gate/actions/workflows/ci.yml)
 
 **Open-source AI privacy gateway for Thai personal data (PDPA).**
 ด่านกรองข้อมูลส่วนบุคคลภาษาไทย ก่อนส่งข้อความไปหา AI — ตรวจจับ ซ่อน ส่งต่อ แล้วคืนค่าในคำตอบ โค้ดเปิดให้ตรวจสอบได้ทุกบรรทัด
@@ -38,16 +38,25 @@ Detection adds about 2 ms for a 4,000-character prompt (p95, Apple Silicon).
 
 ## Install
 
-Requires Python 3.11+.
+Requires Python 3.11+ (or Docker).
 
 ```bash
-pip install git+https://github.com/piyawatSritavong/FirmAlways-Gate.git
+curl -fsSL https://firmalways.meapplication.co.th/install.sh | sh
 ```
 
-Optional extras: `[pdf]` for PDF attachments (pypdf), `[thai-ner]` for untitled Thai names (PyThaiNLP).
+The script installs the latest release with uv, pipx or pip, including PDF support. Read it first: [install.sh](install.sh).
+
+Docker (linux/amd64 and arm64):
 
 ```bash
-pip install "firmalways-gate[pdf,thai-ner] @ git+https://github.com/piyawatSritavong/FirmAlways-Gate.git"
+docker run --rm -p 8787:8787 -e FIRMALWAYS_GATE_API_KEY=change-me \
+  -v "$PWD/policy.toml:/etc/firmalways/policy.toml:ro" ghcr.io/firmalways/gate
+```
+
+From source, with optional extras `[pdf]` (pypdf) and `[thai-ner]` (PyThaiNLP):
+
+```bash
+pip install "firmalways-gate[pdf,thai-ner] @ git+https://github.com/firmalways/gate.git"
 ```
 
 ## Try it in one minute (no API key, nothing leaves your machine)
@@ -155,6 +164,10 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
 Design: [docs/architecture.md](docs/architecture.md)
+
+## FirmAlways Pro
+
+Gate stays free and open source. For organisations, **FirmAlways Pro** adds per-department policies, a PDPA report for your DPO and installation in your own cloud with an offline licence: [firmalways.meapplication.co.th/pro](https://firmalways.meapplication.co.th/pro/). `firmalways-gate serve` prints one line about Pro at startup; hide it with `FIRMALWAYS_NO_PRO_HINT=1`. Gate never contacts our servers.
 
 ## Security
 
