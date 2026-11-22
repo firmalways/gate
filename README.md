@@ -11,7 +11,7 @@ AI ได้รับ:  ร่างอีเมลถึงนางสาว«
 คุณได้รับ:  คำตอบของ AI ที่ใส่ชื่อ เลขบัตร และเบอร์จริงกลับคืนให้แล้ว
 ```
 
-> **Status: alpha (v0.2.0).** Gate helps reduce the risk of sending personal data to AI providers and supports PDPA work. It does **not** make an organization "PDPA compliant", and no detector finds 100% of personal data. Read [Known limits](#known-limits) before using it with real data.
+> **Status: alpha (v0.3.0).** Gate helps reduce the risk of sending personal data to AI providers and supports PDPA work. It does **not** make an organization "PDPA compliant", and no detector finds 100% of personal data. Read [Known limits](#known-limits) before using it with real data.
 
 ## Why
 
@@ -23,7 +23,7 @@ AI ได้รับ:  ร่างอีเมลถึงนางสาว«
 
 | | |
 |---|---|
-| Detects | Thai national ID (13 digits + checksum, Thai digits, any grouping), juristic tax ID, Thai phones (mobile, landline, +66), email, Thai bank accounts, payment cards (Luhn), passports, Thai licence plates, LINE IDs, IP addresses, secrets (API keys, tokens, private keys, passwords), person names with Thai/English titles (optional Thai NER for untitled names), Thai addresses |
+| Detects | Thai national ID (13 digits + checksum, Thai digits, any grouping), juristic tax ID, Thai phones (mobile, landline, +66), email, Thai bank accounts, payment cards (Luhn), passports, Thai licence plates, LINE IDs, IP addresses, dates of birth, nationality (next to a person), secrets (API keys, tokens, private keys, passwords), person names with Thai/English titles (optional Thai NER for untitled names), Thai addresses including building names and house numbers |
 | PDPA s.26 | Health, religion, criminal record, disability, biometric, genetic, political, union, sexual and race data — reported when it appears next to a person identifier, **blocked by default** |
 | Masks | Replaces values with `«TYPE_N»` placeholders; the same value keeps the same placeholder within a request |
 | Restores | Puts real values back into the AI's answer locally, including streamed answers and tool-call arguments |
@@ -149,7 +149,7 @@ Errors use the OpenAI error shape with `type: "firmalways_gate"` and codes `bloc
 firmalways-gate benchmark --dataset curated
 ```
 
-On a curated set of 50 hand-written Thai prompts, Gate finds 94% of labelled values with no false positives (98% with the Thai NER extra); Microsoft Presidio in its default English setup finds 54%. Details, caveats and how to reproduce: [docs/benchmark.md](docs/benchmark.md). The curated set is written by the maintainers and not yet externally annotated.
+On a curated set of 54 hand-written Thai prompts, Gate finds 95% of labelled values with no false positives (98% with the Thai NER extra); Microsoft Presidio in its default English setup finds 49%. Details, caveats and how to reproduce: [docs/benchmark.md](docs/benchmark.md). The curated set is written by the maintainers and not yet externally annotated.
 
 ## Known limits
 

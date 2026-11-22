@@ -2,11 +2,13 @@
 
 from . import (
     bank_account,
+    birth_date,
     credit_card,
     email,
     ip_address,
-    line_id,
     license_plate,
+    line_id,
+    nationality,
     passport,
     phone,
     secret,
@@ -18,10 +20,12 @@ from . import (
 
 __all__ = [
     "bank_account",
+    "birth_date",
     "credit_card",
     "email",
     "ip_address",
     "line_id",
+    "nationality",
     "license_plate",
     "passport",
     "phone",

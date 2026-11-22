@@ -1,8 +1,8 @@
 """Thai postal addresses.
 
-Finds address components (เลขที่, หมู่, ซอย, ถนน, ตำบล/แขวง, อำเภอ/เขต, จังหวัด,
-postal code) and reports runs of at least two adjacent components as one
-address. A single component such as "เขตพื้นที่" or a five-digit number is not
+Finds address components (building or estate name, เลขที่ or a bare house
+number such as 50/38, หมู่, ซอย, ถนน, ตำบล/แขวง, อำเภอ/เขต, จังหวัด, postal code)
+and reports runs of at least two adjacent components as one address. A single component such as "เขตพื้นที่" or a five-digit number is not
 reported on its own.
 """
 
@@ -20,7 +20,11 @@ _NUM = rf"{DIGIT}+(?:/{DIGIT}+)?"
 _COMPONENT = re.compile(
     "|".join(
         (
+            # Building or estate name ending in a building word: "ธันยาคารคอนโดมิเนียม", "อาคารสาทรทาวเวอร์".
+            rf"(?<!{T}){T}{{0,25}}?(?:คอนโดมิเนียม|คอนโด|อาคาร|ทาวน์โฮม|ทาวน์เฮ้าส์|อพาร์ตเมนต์|อพาร์ทเมนท์|แมนชั่น|เรสซิเดนซ์)(?:\s*{T}+)?",
             rf"(?:บ้านเลขที่|เลขที่)\s*{_NUM}",
+            # A bare house number such as 50/38 (not a date like 22/11/2026).
+            rf"(?<![0-9๐-๙/]){DIGIT}{{1,5}}/{DIGIT}{{1,5}}(?![0-9๐-๙/])",
             rf"หมู่บ้าน\s*{T}+",
             rf"(?:หมู่ที่|หมู่|ม\.)\s*{DIGIT}{{1,3}}",
             rf"(?:ซอย|ซ\.)\s*(?:{T}+(?:\s*{_NUM})?|{_NUM})",
@@ -34,6 +38,8 @@ _COMPONENT = re.compile(
     )
 )
 _GAP = re.compile(r"[\s,]{0,3}")
+# Words that often precede a building name in unspaced Thai ("ส่งไปที่อาคาร...") and are not part of it.
+_LEAD_IN = ("ส่งไปที่", "ไปที่", "อยู่ที่", "ส่งที่", "พักที่", "ที่", "ณ")
 
 
 def detect(text: str) -> list[Entity]:
@@ -45,8 +51,13 @@ def detect(text: str) -> list[Entity]:
             groups[-1][2] += 1
         else:
             groups.append([start, end, 1])
-    return [
-        Entity(ENTITY_TYPE, start, end, text[start:end], 0.7 if count >= 3 else 0.6)
-        for start, end, count in groups
-        if count >= 2
-    ]
+    found = []
+    for start, end, count in groups:
+        if count < 2:
+            continue
+        for lead in _LEAD_IN:
+            if text.startswith(lead, start) and end - start > len(lead) + 4:
+                start += len(lead)
+                break
+        found.append(Entity(ENTITY_TYPE, start, end, text[start:end], 0.7 if count >= 3 else 0.6))
+    return found

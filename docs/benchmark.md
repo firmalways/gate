@@ -5,23 +5,24 @@ Two datasets ship with Gate. Neither is externally annotated yet, so treat the n
 | Dataset | Command | What it is |
 |---|---|---|
 | Synthetic | `firmalways-gate benchmark` | 313 generated prompts from templates plus hard negatives. Same authors as the detectors: a regression guard, not a quality claim. |
-| Curated v0 | `firmalways-gate benchmark --dataset curated` | 50 hand-written prompts ([`curated_th.txt`](../src/firmalways_gate/data/curated_th.txt)), independent of the templates, including known misses (untitled names, unusual titles). |
+| Curated v0 | `firmalways-gate benchmark --dataset curated` | 54 hand-written prompts ([`curated_th.txt`](../src/firmalways_gate/data/curated_th.txt)), independent of the templates, including known misses (untitled names, unusual titles). |
 
-## Gate vs Microsoft Presidio (curated v0, 22 November 2026)
+## Gate vs Microsoft Presidio (curated v0, 54 prompts / 61 values, Gate 0.3.0)
 
 Type-agnostic: a labelled value counts as found if any detection overlaps it. Presidio ran with its default recognizers and spaCy `en_core_web_sm`, because it ships no Thai model. That is a typical starting setup, not Presidio's best possible configuration: custom Thai recognizers would raise its numbers.
 
 | Metric | FirmAlways Gate 0.1 | Presidio (default) |
 |---|---:|---:|
-| Recall (values found) | 0.944 | 0.537 |
-| Precision | 1.000 | 0.741 |
-| Protection recall (characters covered) | 0.984 | 0.533 |
+| Recall (values found) | 0.951 | 0.492 |
+| Precision | 1.000 | 0.746 |
+| Protection recall (characters covered) | 0.987 | 0.448 |
 | False positives | 0 | 14 |
 | Recall: Thai national ID | 1.00 | 0.00 |
 | Recall: person names | 0.83 | 0.28 |
 | Recall: PDPA s.26 health | 1.00 | 0.33 |
 | Recall: secrets | 1.00 | 0.00 |
 | Recall: LINE ID / licence plate | 1.00 / 1.00 | 0.00 / 0.00 |
+| Recall: date of birth | 1.00 | 0.00 |
 | Recall: phone, email, card, bank, IP, passport | 1.00 | 1.00 |
 
 Reproduce:
@@ -38,7 +39,7 @@ Person names: precision 0.93, recall 0.78. The misses are by design of the curre
 
 ## With the optional Thai NER extra
 
-`[detection] thai_ner = true` (PyThaiNLP `thainer`) on curated v0: any-type recall rises from 0.944 to 0.982 and precision falls from 1.000 to 0.982 (one false positive). Exact-span person scores drop (0.72) because the model's name boundaries differ from the labels, but more names are covered. Reproduce:
+`[detection] thai_ner = true` (PyThaiNLP `thainer`) on curated v0: any-type recall rises from 0.951 to 0.984 and precision falls from 1.000 to 0.984 (one false positive). Exact-span person scores drop (0.72) because the model's name boundaries differ from the labels, but more names are covered. Reproduce:
 
 ```bash
 uv run --python 3.12 --with pythainlp --with python-crfsuite python -m firmalways_gate benchmark --dataset curated --thai-ner

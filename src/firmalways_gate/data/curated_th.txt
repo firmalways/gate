@@ -59,3 +59,7 @@ Mr. [[PERSON:David Chen]] was [[SENSITIVE_HEALTH:diagnosed]] with [[SENSITIVE_HE
 ทะเบียนบ้านต้องใช้ตอนสมัครงานไหม
 ส่ง OTP ไปที่ [[PHONE:0987654321]] แล้วแต่ลูกค้ายังไม่ได้รับ
 บัญชีผู้ใช้ somchai.j ถูกล็อก ช่วยเขียนขั้นตอนปลดล็อก
+ส่งของไปที่ [[THAI_ADDRESS:ธันยาคารคอนโดมิเนียม 50/38 ซอยลาดพร้าว 38 ถนนลาดพร้าว แขวงสามเสนนอก เขตห้วยขวาง กรุงเทพมหานคร 10310]] ด่วน
+ลูกค้านาย[[PERSON:อนันต์ ศรีวงศ์]] วันเกิด [[DATE_OF_BIRTH:12 มีนาคม 2530]] [[NATIONALITY:สัญชาติไทย]] ขอเปิดบัญชีใหม่
+Applicant Ms. [[PERSON:Mary Wong]], date of birth [[DATE_OF_BIRTH:1990-04-01]], nationality: [[NATIONALITY:Thai]]
+คนสัญชาติไทยต้องใช้เอกสารอะไรบ้างในการต่อพาสปอร์ต

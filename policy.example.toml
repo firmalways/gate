@@ -26,6 +26,8 @@ LICENSE_PLATE = "mask"
 LINE_ID = "mask"
 IP_ADDRESS = "mask"
 TAX_ID = "mask"
+DATE_OF_BIRTH = "mask"
+NATIONALITY = "mask"
 SECRET = "block"
 # PDPA section 26 sensitive data next to a person identifier (default: block)
 SENSITIVE_HEALTH = "block"

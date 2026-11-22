@@ -6,11 +6,13 @@ from collections.abc import Callable, Iterable
 
 from .detectors import (
     bank_account,
+    birth_date,
     credit_card,
     email,
     ip_address,
-    line_id,
     license_plate,
+    line_id,
+    nationality,
     passport,
     phone,
     secret,
@@ -35,6 +37,7 @@ IDENTIFIER_TYPES: frozenset[str] = frozenset(
         passport.ENTITY_TYPE,
         license_plate.ENTITY_TYPE,
         line_id.ENTITY_TYPE,
+        birth_date.ENTITY_TYPE,
     }
 )
 
@@ -52,11 +55,13 @@ ENTITY_TYPES: tuple[str, ...] = (
     license_plate.ENTITY_TYPE,
     line_id.ENTITY_TYPE,
     ip_address.ENTITY_TYPE,
+    birth_date.ENTITY_TYPE,
+    nationality.ENTITY_TYPE,
     *sensitive.ENTITY_TYPES,
 )
 
 _OTHER_DETECTORS = (phone, email, bank_account, credit_card, secret, thai_name, thai_address, passport,
-                    license_plate, line_id, ip_address)
+                    license_plate, line_id, ip_address, birth_date)
 
 def analyze(
     text: str,
@@ -76,7 +81,7 @@ def analyze(
     found = [e for e in found if e.score >= min_score]
     identified = any(e.type in IDENTIFIER_TYPES for e in found)
     if identified or not sensitive_requires_identifier:
-        flagged = [e for e in sensitive.detect(text) if e.score >= min_score]
+        flagged = [e for e in sensitive.detect(text) + nationality.detect(text) if e.score >= min_score]
         found = [_trim_name(e, flagged, text) for e in found] + flagged
     if entity_types is not None:
         wanted = frozenset(entity_types)

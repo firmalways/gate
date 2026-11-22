@@ -27,6 +27,8 @@ DEFAULT_ENTITY_ACTIONS: dict[str, str] = {
     "LINE_ID": "mask",
     "IP_ADDRESS": "mask",
     "TAX_ID": "mask",
+    "DATE_OF_BIRTH": "mask",
+    "NATIONALITY": "mask",
     "SECRET": "block",
     # PDPA section 26 sensitive data (reported only next to a personal identifier)
     "SENSITIVE_HEALTH": "block",

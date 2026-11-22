@@ -1,6 +1,6 @@
 """FirmAlways Gate: open-source AI privacy gateway for Thai personal data."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .analyzer import ENTITY_TYPES, analyze  # noqa: E402
 from .engine import ContentNotAllowed, Gate, Protection, restore_completion  # noqa: E402
