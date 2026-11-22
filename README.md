@@ -45,6 +45,11 @@ curl -fsSL https://firmalways.meapplication.co.th/install.sh | sh
 ```
 
 The script installs the latest release with uv, pipx or pip, including PDF support. Read it first: [install.sh](install.sh).
+The same script is attached to every GitHub release:
+
+```bash
+curl -fsSL https://github.com/firmalways/gate/releases/latest/download/install.sh | sh
+```
 
 Docker (linux/amd64 and arm64):
 
